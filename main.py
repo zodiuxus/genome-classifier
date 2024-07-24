@@ -10,13 +10,13 @@ if __name__ == '__main__':
     terms = ["agapornis roseicollis[Orgn]", "cacatua moluccensis[Orgn]", "beak and feather disease virus host", "influenza a virus host", "avian paramyxovirus complete genome", "beak and feather disease virus[Orgn]", "influenza a virus[Orgn]"]
     # If you're going to create a training and validation dataset that have similar names or entries,
     # I recommend you split the term-class pairs into multiple lists and outputting to different folders.
-    # sf.getData(terms, 100, 10, "leonid.mishevski@students.finki.ukim.mk")
-    # sf.getSequences(hostClassPairs, outPath="data/sequences/hosts/")
-    # sf.getSequences(virusClassPairs, outPath="data/sequences/viruses/")
-    # sf.combineSequences(inPath="data/sequences/hosts/", outPath="data/partial_data/", outFile="hosts.txt", skipFirst=True)
-    # sf.combineSequences(inPath="data/sequences/viruses/", outPath="data/partial_data/", outFile="viruses.txt", skipFirst=True)
-    # sf.combineSequences(inPath="data/partial_data/")
-    # sf.createKmers(windowSize=window)
+    sf.getData(terms, 100, 10, "email goes here")
+    sf.getSequences(hostClassPairs, outPath="data/sequences/hosts/")
+    sf.getSequences(virusClassPairs, outPath="data/sequences/viruses/")
+    sf.combineSequences(inPath="data/sequences/hosts/", outPath="data/partial_data/", outFile="hosts.txt", skipFirst=True)
+    sf.combineSequences(inPath="data/sequences/viruses/", outPath="data/partial_data/", outFile="viruses.txt", skipFirst=True)
+    sf.combineSequences(inPath="data/partial_data/")
+    sf.createKmers(windowSize=window)
 
     sequences, classes, classCounts = sf.separateSeqAndClass("3_kmers.txt")
     viralClassCount = classCounts[0]+classCounts[1]+classCounts[2]
