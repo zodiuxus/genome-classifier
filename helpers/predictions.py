@@ -1,8 +1,9 @@
 from collections.abc import Iterable
+from pandas.core.common import random_state
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.utils import shuffle
 from sklearn.naive_bayes import CategoricalNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -11,7 +12,7 @@ from sklearn.metrics import classification_report
 import os
 import warnings
 
-def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], classNames:Iterable[str], testData=None, testSize:float=0.2, layers:tuple=(8, 4), iterations:int=3200, outPath:str='data/predictions/', termPath:str='termPath/', randState:int=64):
+def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], classNames:Iterable[str], testData=None, testSize=0.2, layers:tuple=(8, 4), iterations:int=3200, outPath:str='data/predictions/', termPath:str='termPath/', randState:int=64):
     '''
         Holds all the prediction models inside. This is the main method
         with which the performance of a selected model is tested.
@@ -33,8 +34,11 @@ def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], c
         testData: Optional. Should be a Numpy ndarray which contains 
                   the validation data
 
-        testSize: Ratio between training and validation data. Defaults
-                  to 0.2
+        testSize: Accepts either a float ratio within (0.0, 1.0) or an
+                  integer if amount is within [1, +inf]. Predicted use
+                  is float values for all-in-one train and test data,
+                  and integer values for separated training and test
+                  data
 
         layers: Tuple of hidden layers for use with the MLPClassifier.
                 Defaults to (8,4)
@@ -51,61 +55,71 @@ def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], c
         randState: Integer to allow for reproducible predictions.
                    Defaults to 64
     '''
-    if mode is not None:
-        if not os.path.isdir(outPath):
-            os.makedirs(outPath)
-        
-        if termPath == "termPath/":
-            warnings.warn("termPath should not be left at default. This will overwrite any prediction, unless it's being used to test a single model.")
-        
-        x_train, x_test, y_train, y_test = train_test_split(trainingData, classes, test_size=testSize)
+    if not os.path.isdir(outPath+termPath):
+        os.makedirs(outPath+termPath)
+    
+    if termPath == "termPath/":
+        warnings.warn("termPath should not be left at default. This will overwrite any prediction, unless it's being used to test a single model.")
+    
+    scaler = StandardScaler(with_mean=False)
 
-        scaler = StandardScaler(with_mean=False)
+    if type(testSize) is float:
+        x_train, x_test, y_train, y_test = train_test_split(trainingData, classes, test_size=testSize, random_state=randState)
+
         scaler.fit(x_train)
         x_train = scaler.transform(x_train)
-        x_test = scaler.transform(testData) if testData is not None else scaler.transform(x_test)
+        x_test = scaler.transform(x_test) 
 
-        if mode == 'cnn':
+    elif type(testSize) is int:
+        if testData is not None or []:
+            x_train, y_train = shuffle(trainingData, classes, random_state=randState)
 
-            print(f'Metrics for CNN prediction using {layers} for hidden layer sizes, {iterations} iterations')
-
-            clf = MLPClassifier(solver='lbfgs', hidden_layer_sizes=layers , max_iter=iterations, random_state=randState)
-            with open(outPath+termPath+mode+".txt", "w") as f:
-                clf.fit(x_train, y_train)
-                prediction = clf.predict(x_test)
-                f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
-
-        elif mode == 'svc':
-            print('Metrics for LinearSVC')
-            svc = LinearSVC(max_iter=iterations*10, random_state=randState)
-            with open(outPath+termPath+mode+".txt", "w") as f:
-                svc.fit(x_train, y_train)
-                prediction = svc.predict(x_test)
-                f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
-
-        elif mode == 'dtc':
-            print('Metrics for DecisionTreeClassifier')
-            dtc = DecisionTreeClassifier(criterion='entropy', random_state=randState)
-            with open(outPath+termPath+mode+".txt", "w") as f:
-                dtc.fit(x_train, y_train)
-                prediction = dtc.predict(x_test)
-                f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
-
-        elif mode == 'cnb':
-            print('Metrtics for CategoricalNB')
-            cnb = CategoricalNB(min_categories=244)
-            with open(outPath+termPath+mode+".txt", "w") as f:
-                cnb.fit(x_train, y_train)
-                prediction = cnb.predict(x_test)
-                f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
-
+            scaler.fit(trainingData)
+            x_train = scaler.transform(trainingData)
+            x_test = scaler.transform(testData)
+            y_test = shuffle(y_train, random_state=randState, n_samples=testSize)
         else:
-            raise Exception("Unsupported mode. Expected: \'cnn\', \'svc\', \'dtc\', or \'cnb\'. Got:", mode)
+            raise AttributeError("testData is likely None or an empty array.")
     else:
-        raise Exception("No mode passed. Expected: \'cnn\', \'svc\', \'dtc\', or \'cnb\'.")
+        raise AttributeError("Expected testSize of type int or float. Got: "+str(type(testSize)))
 
-#--------------------------------------------------------------------------------------------------------------------------------------------------
-    
+    if mode == 'cnn':
+
+        print(f'Metrics for CNN prediction using {layers} for hidden layer sizes, {iterations} iterations')
+
+        clf = MLPClassifier(solver='lbfgs', hidden_layer_sizes=layers , max_iter=iterations, random_state=randState)
+        with open(outPath+termPath+mode+".txt", "w") as f:
+            clf.fit(x_train, y_train)
+            prediction = clf.predict(x_test)
+            f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
+
+    elif mode == 'svc':
+        print('Metrics for LinearSVC')
+        svc = LinearSVC(max_iter=iterations, random_state=randState)
+        with open(outPath+termPath+mode+".txt", "w") as f:
+            svc.fit(x_train, y_train)
+            prediction = svc.predict(x_test)
+            f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
+
+    elif mode == 'dtc':
+        print('Metrics for DecisionTreeClassifier')
+        dtc = DecisionTreeClassifier(criterion='entropy', random_state=randState)
+        with open(outPath+termPath+mode+".txt", "w") as f:
+            dtc.fit(x_train, y_train)
+            prediction = dtc.predict(x_test)
+            f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
+
+    elif mode == 'cnb':
+        print('Metrtics for CategoricalNB')
+        cnb = CategoricalNB(min_categories=244)
+        with open(outPath+termPath+mode+".txt", "w") as f:
+            cnb.fit(x_train, y_train)
+            prediction = cnb.predict(x_test)
+            f.write(str(classification_report(y_test, prediction, zero_division=0.0, target_names=classNames)))
+
+    else:
+        raise Exception("Unsupported mode. Expected: \'cnn\', \'svc\', \'dtc\', or \'cnb\'. Got:", mode)
+
 def vectorizeData(kmerList, ngramRange:tuple=(4,4)):
     '''
         Returns a NumPy ndarray with vectorized k-mer sequences using the 

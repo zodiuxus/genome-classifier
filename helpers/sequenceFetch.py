@@ -80,13 +80,15 @@ def getData(terms:Iterable, maxRecords:int, batchSize:int, email:str="A.N.Other@
                     output.write(data)
                 stream.close()
 
-def createKmers(inPath:str="data/combined_data/", outPath:str="data/kmers/", inFile:str='combined_sequences.txt', outFile:str='kmers', sequences=[], windowSize:int=1, step:int=1, mode:str='l'):
+def createKmers(inPath:str="data/combined_data/", outPath:str="data/kmers/", inFile:str='combined_sequences.txt', outFile:str='kmers.txt', sequences=[], windowSize:int=1, step:int=1, mode:str='l'):
 
     '''
         Generates a list of k-mers created from groups of k sequential nucleotides
         from each sequence.
 
-        Output format is: outPath + windowSize_outFile ; outFile needs an extension.
+        Output format is: outPath/outFile ; outFile needs an extension. It is
+                          recommended to add the window size to the file name to
+                          keep track of what was used
 
         inPath: Input path from which sequences are gathered. Defaults to
         "data/combined_data/", which is the output of combineSequences()
@@ -110,20 +112,23 @@ def createKmers(inPath:str="data/combined_data/", outPath:str="data/kmers/", inF
 
 
     '''
+
+    if not os.path.isdir(outPath):
+        os.makedirs(outPath)
     
     if mode.lower() == 'l' and outFile!= '':
-        with open(outPath+str(windowSize)+"_"+outFile, 'w') as output:
+        with open(outPath+outFile, 'w') as output:
             output.write("sequence,class\n")
             
             data = pd.read_csv(inPath+inFile, sep=" ")
-            data = data[data['sequence'].str.contains("seq") == False]
+            data.sort_values('class', inplace=True)
             sequences = data['sequence'].tolist()
             dataClasses = data['class'].tolist()
-            for sequence in sequences:
+            for index, sequence in enumerate(sequences):
                 temp = ''
                 for x in range(0, len(sequence)-windowSize+1, step):
                     temp += sequence[x:x+windowSize]+' '
-                output.write(temp+','+str(dataClasses[sequences.index(sequence)])+"\n")
+                output.write(temp+','+str(dataClasses[index])+"\n")
 
     elif mode.lower() == 's' and sequences:
         kmers = []
@@ -155,7 +160,10 @@ def sequenceToFile(sequences, termClassPairs, outPath:str, outfile:str):
                 seqs.append(item.seq+" "+str(classNo))
             elif not unavailable:
                 unavailable = True
-                print("The term and class pair for " + term + " - " + str(classNo) + "has not been found.")
+                print("The term and class pair for " + term + " - class " + str(classNo) + " has not been found.")
+
+    if not os.path.isdir(outPath):
+        os.makedirs(outPath)
 
     with open(outPath+outfile+".txt", "w") as output:
         print("Writing into "+outPath+outfile+".txt")
@@ -191,7 +199,7 @@ def getSequences(termClassPairs:Iterable, mode:str='l', inPath:str="data/entries
         datatype: Datatype matching the file type, defaults to "fasta"
     '''
     
-    if fileName is str:
+    if type(fileName) is str:
         sequences = list(SeqIO.parse(inPath+fileName, datatype))
         if mode.lower() == 'l':
             sequenceToFile(sequences, termClassPairs, outPath, fileName)
@@ -212,7 +220,7 @@ def getSequences(termClassPairs:Iterable, mode:str='l', inPath:str="data/entries
             elif mode.lower() == 's':
                 return [str(x.seq).lower() for x in sequences]
 
-def separateSeqAndClass(fileName:str, windowSize:int, inPath:str="data/kmers/"):
+def separateSeqAndClass(fileName:str, inPath:str="data/kmers/"):
     '''
         Takes as input the output of createKmers as fileName and returns the
         k-mers and list of classes each k-mer belongs to, as well as the amount
@@ -222,13 +230,13 @@ def separateSeqAndClass(fileName:str, windowSize:int, inPath:str="data/kmers/"):
 
         inPath: path in which the file is searched for, defaults to "data/kmers/"
     '''
-    kmers = pd.read_csv(inPath+str(windowSize)+"_"+fileName, sep=',')
+    kmers = pd.read_csv(inPath+fileName, sep=',')
     kmers.sort_values(by='class', inplace=True)
     sequences = kmers['sequence'].tolist()
     classes = kmers['class'].tolist()
     return sequences, classes, kmers.value_counts('class', sort=False).tolist()
 
-def combineSequences(inPath:str="data/sequences/", outPath:str="data/combined_data/", outFile:str="combined_sequences.txt"):
+def combineSequences(inPath:str="data/sequences/", outPath:str="data/combined_data/", outFile:str="combined_sequences.txt", skipFirst:bool=False):
     '''
         Takes a directory of sequences and combines them into one large csv-like
         file.
@@ -241,12 +249,19 @@ def combineSequences(inPath:str="data/sequences/", outPath:str="data/combined_da
 
         outFile: Name of file in the output directory, defaults to
                  "combined_sequences.txt"
+
+        skipFirst: Use this when combining two or more already combined files,
+                   and set to False (or omit)
     '''
     if not os.path.isdir(inPath):
         os.mkdir(inPath)
+    if not os.path.isdir(outPath):
+        os.mkdir(outPath)
+
     fileNames = os.listdir(inPath)
     with open(outPath+outFile, "w") as outfile:
-        outfile.write("sequence class")
+        if not skipFirst:
+            outfile.write("sequence class\n") 
         for file in fileNames:
             with open(inPath+file) as infile:
                 for line in infile:
