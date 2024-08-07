@@ -1,6 +1,5 @@
 from collections.abc import Iterable
-from pandas.core.common import random_state
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
@@ -12,7 +11,7 @@ from sklearn.metrics import classification_report
 import os
 import warnings
 
-def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], classNames:Iterable[str], testData=None, testSize=0.2, layers:tuple=(8, 4), iterations:int=3200, outPath:str='data/predictions/', termPath:str='termPath/', randState:int=64):
+def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], classNames:Iterable[str], testData=None, testSize=0.2, layers:tuple=(8, 4), iterations:int=3200, outPath:str='data/predictions/', termPath:str='defaultPath/', randState:int=64):
     '''
         Holds all the prediction models inside. This is the main method
         with which the performance of a selected model is tested.
@@ -73,10 +72,11 @@ def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], c
     elif type(testSize) is int:
         if testData is not None or []:
             x_train, y_train = shuffle(trainingData, classes, random_state=randState)
+            x_test = shuffle(testData, random_state=randState)
 
-            scaler.fit(trainingData)
-            x_train = scaler.transform(trainingData)
-            x_test = scaler.transform(testData)
+            scaler.fit(x_train)
+            x_train = scaler.transform(x_train)
+            x_test = scaler.transform(x_test)
             y_test = shuffle(y_train, random_state=randState, n_samples=testSize)
         else:
             raise AttributeError("testData is likely None or an empty array.")
@@ -120,7 +120,7 @@ def predictionFunction(mode:str, trainingData:Iterable, classes:Iterable[int], c
     else:
         raise Exception("Unsupported mode. Expected: \'cnn\', \'svc\', \'dtc\', or \'cnb\'. Got:", mode)
 
-def vectorizeData(kmerList, ngramRange:tuple=(4,4)):
+def vectorizeData(kmerList, ngramRange:tuple=(4,4), mode:str='cvec'):
     '''
         Returns a NumPy ndarray with vectorized k-mer sequences using the 
         TfidfVectorizer.
@@ -133,9 +133,16 @@ def vectorizeData(kmerList, ngramRange:tuple=(4,4)):
         
         kmerList: A complete list of kmers generated from the full list of sequences
                   obtained by using createData()
+
+        mode: Selects vectorizer. 'cvec' for CountVectorizer, 'tfidf' for TfidfVectorizer
         
         ngramRange was added for finer control and testing for the vectorizer.
     '''
-    vectorizer = TfidfVectorizer(ngram_range=ngramRange)
+    if mode == 'cvec':
+        vectorizer = CountVectorizer(ngram_range=ngramRange)
+    elif mode == 'tfidf':
+        vectorizer = TfidfVectorizer(ngram_range=ngramRange)
+    else:
+        raise Exception("Unsupported vectorizer mode. Expected 'cvec' or 'tfidf', got:" + mode)
     return vectorizer.fit_transform(kmerList)
  
